@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图片批量整理工具</title>
+<style>
+:root {
+  --primary: #4f6ef7;
+  --primary-hover: #3b55d9;
+  --primary-light: #eef1ff;
+  --success: #27ae60;
+  --danger: #e74c3c;
+  --danger-hover: #c0392b;
+  --warning: #f39c12;
+  --bg: #f0f2f5;
+  --card: #fff;
+  --border: #e0e0e0;
+  --border-dark: #ccc;
+  --text: #2c3e50;
+  --text-secondary: #7f8c8d;
+  --text-light: #aaa;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --radius: 8px;
+  --radius-sm: 4px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; font-size: 14px; }
+
+/* ========== Header ========== */
+.header { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 20px; height: 52px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.header h1 { font-size: 16px; display: flex; align-items: center; gap: 6px; }
+.header h1 span { color: var(--primary); }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.header-right .operator-select { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.header-right .operator-select select { padding: 3px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; outline: none; background: #fff; }
+
+/* ========== Toolbar ========== */
+.toolbar { background: var(--card); padding: 10px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+.btn { padding: 7px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover:not(:disabled) { background: #219a52; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+.btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.btn-outline:hover:not(:disabled) { background: #f5f5f5; }
+.btn-ghost { background: transparent; color: var(--text-secondary); border: none; }
+.btn-ghost:hover { background: #f5f5f5; }
+.btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 4px; }
+.btn-icon { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 15px; }
+.toolbar .file-info { font-size: 13px; color: var(--text-secondary); margin-left: auto; }
+input, select, textarea { font-family: inherit; }
+input[type="text"], input[type="number"], select, textarea { padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; outline: none; }
+input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+
+/* ========== Main Layout ========== */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* ========== Sidebar ========== */
+.sidebar { width: 320px; min-width: 200px; max-width: 500px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.sidebar-resize-handle { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 10; }
+.sidebar-resize-handle:hover, .sidebar-resize-handle.active { background: var(--primary); opacity: 0.3; }
+.sidebar-scroll { flex: 1; overflow-y: auto; }
+.sidebar-section { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.sidebar-section:last-child { border-bottom: none; }
+.sidebar-section-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 500; }
+.create-group-form { display: flex; flex-direction: column; gap: 6px; }
+.create-row { display: flex; gap: 6px; align-items: center; }
+.create-row label { font-size: 12px; color: var(--text-secondary); width: 36px; flex-shrink: 0; }
+.create-row select, .create-row input { flex: 1; }
+.create-row .btn { flex-shrink: 0; }
+.group-list { padding: 4px 0; }
+.group-item { padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 6px; margin: 1px 6px; transition: background 0.1s; }
+.group-item:hover { background: #f5f7fa; }
+.group-item.active { background: var(--primary-light); color: var(--primary); }
+.group-item .g-icon { font-size: 14px; flex-shrink: 0; }
+.group-item .g-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.group-item .g-count { font-size: 11px; color: var(--text-secondary); background: #f0f0f0; padding: 1px 7px; border-radius: 10px; flex-shrink: 0; }
+.group-item .g-op { font-size: 10px; color: #fff; background: var(--primary); padding: 1px 6px; border-radius: 3px; flex-shrink: 0; font-weight: 500; }
+.group-item.active .g-op { background: #fff; color: var(--primary); }
+.group-item.active .g-count { background: var(--primary); color: #fff; }
+.group-item .g-del { display: none; width: 18px; height: 18px; border: none; background: transparent; cursor: pointer; border-radius: 50%; font-size: 12px; flex-shrink: 0; align-items: center; justify-content: center; color: var(--text-light); }
+.group-item:hover .g-del { display: flex; }
+.group-item .g-del:hover { color: var(--danger); background: #fde8e8; }
+.group-item.ungrouped { border-bottom: 1px solid var(--border); border-radius: 0; margin: 0 6px 4px; padding-bottom: 10px; }
+.group-item.ungrouped.active { background: #f0f2f5; color: var(--text); }
+
+.cat-section { margin-top: 6px; }
+.cat-header { padding: 5px 14px 5px 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); border-radius: 4px; margin: 0 6px; user-select: none; }
+.cat-header:hover { background: #f0f2f5; }
+.cat-arrow { font-size: 10px; transition: transform 0.15s; flex-shrink: 0; color: var(--text-secondary); }
+.cat-arrow.collapsed { transform: rotate(-90deg); }
+.cat-name { flex: 1; }
+.cat-count { font-size: 11px; color: var(--text-secondary); background: #f0f0f0; padding: 1px 7px; border-radius: 10px; flex-shrink: 0; }
+.cat-body { overflow: hidden; }
+.cat-body.collapsed { display: none; }
+.group-item.cat-item { margin: 1px 10px 1px 26px; padding: 6px 10px; font-size: 13px; }
+
+/* ========== Content ========== */
+.content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.content-header { padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--card); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.content-header h2 { font-size: 15px; font-weight: 500; }
+.content-header .hint { font-size: 12px; color: var(--text-secondary); }
+.content-body { flex: 1; overflow-y: auto; padding: 12px 16px; }
+
+/* ========== Image Grid ========== */
+.image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.image-card { background: var(--card); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); cursor: grab; position: relative; }
+.image-card:active { cursor: grabbing; }
+.image-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.12); }
+.image-card .thumb { width: 100%; aspect-ratio: 1; background: #f8f8f8; overflow: hidden; position: relative; }
+.image-card .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.image-card .thumb .badge { position: absolute; bottom: 3px; right: 3px; background: rgba(0,0,0,0.55); color: #fff; font-size: 10px; padding: 1px 5px; border-radius: 3px; line-height:1.4; }
+.image-card .info { padding: 5px 7px; font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
+.image-card .info .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.image-card.dragging { opacity:0.35; }
+.image-card .img-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.image-card .img-copy { width: 16px; min-width:16px; height:16px; border:none; background:transparent; cursor:pointer; border-radius:50%; font-size:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.image-card .img-copy:hover { background: var(--primary-light); }
+.image-card .img-remove { width: 16px; min-width:16px; height:16px; border:none; background:transparent; cursor:pointer; border-radius:50%; font-size:11px; display:flex; align-items:center; justify-content:center; color:#ccc; flex-shrink:0; }
+.image-card .img-remove:hover { color:var(--danger); background:#fde8e8; }
+
+/* ========== Partition View ========== */
+.partition-section { margin-bottom: 16px; }
+.partition-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 0 4px; }
+.partition-header .p-label { font-size: 14px; font-weight: 500; }
+.partition-header .p-count { font-size: 12px; color: var(--text-secondary); background: #f0f0f0; padding: 1px 8px; border-radius: 10px; }
+.partition-row { display: flex; gap: 8px; min-height: 100px; padding: 8px; border: 2px dashed var(--border); border-radius: var(--radius); overflow-x: auto; transition: all 0.15s; flex-wrap: wrap; align-content: flex-start; }
+.partition-row.drag-over { border-color: var(--primary); background: var(--primary-light); }
+.partition-row .image-card { width: 120px; min-width: 120px; }
+.partition-row.empty { display: flex; align-items: center; justify-content: center; color: var(--text-light); font-size: 13px; }
+.partition-row.empty .placeholder { opacity: 0.5; }
+
+/* ========== Ungrouped Pool (within group view) ========== */
+.pool-section { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid var(--border); }
+.pool-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pool-header .pool-label { font-size: 14px; font-weight: 500; }
+.pool-header .pool-count { font-size: 12px; color: var(--text-secondary); }
+.pool-grid { display: flex; gap: 8px; flex-wrap: wrap; min-height: 80px; padding: 8px; border: 2px dashed #ddd; border-radius: var(--radius); background: #fafafa; }
+.pool-grid .image-card { width: 100px; min-width: 100px; }
+.pool-grid.drag-over { border-color: var(--warning); background: #fef9e7; }
+.pool-grid.empty { display: flex; align-items: center; justify-content: center; color: var(--text-light); font-size: 13px; }
+.pool-divider { width: 100%; text-align: center; font-size: 11px; color: var(--text-light); padding: 2px 0; border-top: 1px dashed #ddd; margin: 6px 0 2px; }
+.badge-new { position: absolute; top: 3px; left: 3px; background: var(--primary); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 3px; line-height: 1.4; font-weight: 600; }
+
+/* ========== Empty / States ========== */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); gap: 6px; }
+.empty-state .big-icon { font-size: 40px; opacity: 0.2; }
+.empty-state p { font-size: 14px; }
+
+/* ========== Config Modal ========== */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 1000; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--card); border-radius: 12px; width: 640px; max-width: 94vw; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.modal-header h2 { font-size: 16px; }
+.modal-header .close-btn { width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; border-radius: 4px; font-size: 18px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+.modal-header .close-btn:hover { background: #f0f0f0; }
+.modal-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+
+.config-section { margin-bottom: 20px; }
+.config-section-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.config-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.config-table th { text-align: left; padding: 6px 8px; color: var(--text-secondary); font-weight: 500; font-size: 12px; border-bottom: 1px solid var(--border); }
+.config-table td { padding: 5px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+.config-table td input, .config-table td select { width: 100%; padding: 4px 8px; font-size: 13px; }
+.config-table .row-del { width: 30px; text-align: center; }
+.config-table .row-del button { width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; border-radius: 4px; font-size: 14px; color: var(--text-light); }
+.config-table .row-del button:hover { color: var(--danger); background: #fde8e8; }
+.config-add-row { margin-top: 6px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.config-add-row input, .config-add-row select { padding: 4px 8px; font-size: 13px; }
+
+.naming-preview { background: #f8f9fa; border-radius: 6px; padding: 10px 14px; margin-top: 8px; font-size: 13px; }
+.naming-preview .np-label { color: var(--text-secondary); font-size: 12px; margin-bottom: 4px; }
+.naming-preview .np-value { font-family: 'Consolas', monospace; font-size: 13px; color: var(--text); word-break: break-all; }
+
+.csv-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.csv-info { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
+
+/* ========== Progress ========== */
+.progress-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 1000; }
+.progress-overlay.show { display: flex; }
+.progress-dialog { background: var(--card); border-radius: 12px; padding: 28px 32px; width: 380px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+.progress-dialog h3 { font-size: 16px; margin-bottom: 14px; }
+.progress-track { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; margin: 14px 0; }
+.progress-track .bar { height: 100%; background: var(--primary); width: 0%; border-radius: 3px; transition: width 0.2s; }
+.progress-text { font-size: 13px; color: var(--text-secondary); }
+
+/* ========== Toast ========== */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 9px 22px; border-radius: 6px; font-size: 13px; z-index: 2000; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+.toast.show { opacity: 1; }
+
+/* ========== Utility ========== */
+.hidden { display: none !important; }
+@media (max-width: 768px) {
+  .sidebar { width: 220px; min-width: 220px; }
+  .image-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .modal { width: 96vw; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>📁</span> 图片批量整理工具</h1>
+  <div class="header-right">
+    <div class="operator-select">
+      <span>运营</span>
+      <select id="operatorSelect"><option value="">未设置</option></select>
+    </div>
+    <button class="btn btn-ghost btn-icon" id="configBtn" title="预设配置">⚙️</button>
+  </div>
+</div>
+
+<div class="toolbar">
+  <button class="btn btn-primary" id="selectFolderBtn">📂 选择源文件夹</button>
+  <button class="btn btn-outline" id="addMoreBtn">➕ 添加更多图片</button>
+  <button class="btn btn-success" id="exportBtn" disabled>💾 导出整理</button>
+  <input type="file" id="folderInput" webkitdirectory multiple accept="image/*" style="display:none">
+  <input type="file" id="addMoreInput" webkitdirectory multiple accept="image/*" style="display:none">
+  <span class="file-info" id="fileInfo">请选择源文件夹</span>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">创建分组</div>
+      <div class="create-group-form">
+        <div class="create-row">
+          <label>品类</label>
+          <select id="createCategory"><option value="">请配置品类</option></select>
+          <label style="width:auto;">SKC</label>
+          <input type="text" id="createSKC" placeholder="A001" style="width:80px;flex:none;">
+          <button class="btn btn-primary btn-sm" id="createGroupBtn">创建</button>
+        </div>
+        <div class="create-row">
+          <label>产品</label>
+          <input type="text" id="createProduct" placeholder="产品中文名">
+          <label style="width:auto;">SKU</label>
+          <input type="text" id="createSKU" placeholder="选填: A001-Red-M" style="flex:0.8;">
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-scroll">
+      <div class="group-list" id="groupList">
+        <div class="group-item ungrouped active" data-group="__ungrouped__">
+          <span class="g-icon">📋</span>
+          <span class="g-name">未分类</span>
+          <span class="g-count" id="ungroupedCount">0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="content-header" id="contentHeader">
+      <h2 id="contentTitle">未分类图片</h2>
+      <span class="hint" id="contentHint">选择源文件夹加载图片</span>
+    </div>
+    <div class="content-body" id="contentBody">
+      <div class="empty-state" id="emptyState">
+        <div class="big-icon">🖼️</div>
+        <p>点击上方「选择源文件夹」加载图片</p>
+      </div>
+      <div id="viewContainer"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Config Modal ========== -->
+<div class="modal-overlay" id="configModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>⚙️ 预设配置</h2>
+      <button class="close-btn" id="configCloseBtn">✕</button>
+    </div>
+    <div class="modal-body" id="configBody">
+
+      <div class="config-section">
+        <div class="config-section-title">👤 运营管理</div>
+        <table class="config-table" id="operatorTable">
+          <thead><tr><th style="width:80px;">代号</th><th>名字</th><th class="row-del"></th></tr></thead>
+          <tbody id="operatorTableBody"></tbody>
+        </table>
+        <div class="config-add-row">
+          <input type="text" id="newOpCode" placeholder="代号如 AMY" style="width:100px;">
+          <input type="text" id="newOpName" placeholder="名字如 艾米" style="width:120px;">
+          <button class="btn btn-primary btn-sm" id="addOperatorBtn">添加</button>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <div class="config-section-title">🏷️ 品类管理</div>
+        <table class="config-table" id="categoryTable">
+          <thead><tr><th>品类名称</th><th style="width:100px;">SKC前缀</th><th class="row-del"></th></tr></thead>
+          <tbody id="categoryTableBody"></tbody>
+        </table>
+        <div class="config-add-row">
+          <input type="text" id="newCatName" placeholder="如 女装" style="width:120px;">
+          <input type="text" id="newCatPrefix" placeholder="前缀字母 A" style="width:80px;text-transform:uppercase;">
+          <button class="btn btn-primary btn-sm" id="addCategoryBtn">添加</button>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <div class="config-section-title">📂 分区类型</div>
+        <table class="config-table" id="partitionTable">
+          <thead><tr><th>显示名称</th><th style="width:140px;">内部标识</th><th style="width:60px;">固定</th></tr></thead>
+          <tbody id="partitionTableBody"></tbody>
+        </table>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">主图 / 详情图 / SKU图为固定分区，备用素材可改名</div>
+      </div>
+
+      <div class="config-section">
+        <div class="config-section-title">📝 命名规则</div>
+        <table class="config-table">
+          <tbody>
+            <tr><td style="width:80px;">文件夹</td><td><input type="text" id="folderTemplate" value="{品类}_{产品名}_{SKC}" style="width:100%;font-family:Consolas,monospace;"></td></tr>
+            <tr><td>文件名</td><td><input type="text" id="fileTemplate" value="{品类}_{产品名}_{SKC}_{类型}_{序号}" style="width:100%;font-family:Consolas,monospace;"></td></tr>
+          </tbody>
+        </table>
+        <div class="naming-preview">
+          <div class="np-label">预览示例：</div>
+          <div class="np-value" id="namingPreview">女装_碎花连衣裙_A001 / 女装_碎花连衣裙_A001_主图_01.jpg</div>
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">可用变量：{品类} {产品名} {SKC} {SKU} {类型} {序号} {运营代号}</div>
+      </div>
+
+      <div class="config-section">
+        <div class="config-section-title">📤 与飞书互通</div>
+        <div class="csv-actions">
+          <button class="btn btn-outline btn-sm" id="importCsvBtn">📥 导入CSV（从飞书）</button>
+          <button class="btn btn-outline btn-sm" id="exportCsvBtn">📤 导出CSV</button>
+          <input type="file" id="csvInput" accept=".csv" style="display:none">
+        </div>
+        <div class="csv-info">CSV格式：SKC,品类,产品名,SKU列表,运营代号,状态,上架日期,链接地址,备注（首行为表头）</div>
+      </div>
+
+      <div class="config-section">
+        <div class="config-section-title">🔗 配置共享</div>
+        <div class="csv-actions">
+          <button class="btn btn-outline btn-sm" id="exportConfigJsonBtn">📤 导出配置（发送给同事）</button>
+          <button class="btn btn-outline btn-sm" id="importConfigJsonBtn">📥 导入配置（接收同事配置）</button>
+          <input type="file" id="configJsonInput" accept=".json" style="display:none">
+        </div>
+        <div class="csv-info">导出的配置包含：品类列表、分区类型、命名规则。运营代号各自设置即可。</div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="configCancelBtn">取消</button>
+      <button class="btn btn-primary" id="configSaveBtn">保存配置</button>
+    </div>
+  </div>
+</div>
+
+<div class="progress-overlay" id="progressOverlay">
+  <div class="progress-dialog">
+    <h3 id="progressTitle">正在导出...</h3>
+    <div class="progress-track"><div class="bar" id="progressBar"></div></div>
+    <div class="progress-text" id="progressText">准备中...</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'img_organizer_config_v2';
+const GROUPS_KEY = 'img_organizer_groups_v1';
+const COLLAPSED_KEY = 'organizer_collapsed_cats';
+const PARTITION_KEYS = ['main', 'detail', 'sku', 'reserve'];
+
+class ImageOrganizer {
+  constructor() {
+    this.files = [];
+    this.groups = new Map();
+    this.selectedView = '__ungrouped__';
+    this.deleted = new Set();
+    this.newRangeStart = Infinity;
+    this.draggedIndex = -1;
+    this.draggedFromGroup = null;
+    this.draggedFromPartition = null;
+    this.nextTempId = 1;
+    this.config = this.loadConfig();
+    this.els = {};
+    this.cacheDom();
+    this.restoreSidebarWidth();
+    this.restoreGroups();
+    this.applyConfigToUI();
+    this.bindEvents();
+    this.renderSidebar();
+    this.renderView();
+  }
+
+  /* ==============================
+     Config
+  ============================== */
+
+  defaultConfig() {
+    return {
+      operators: [{ code: 'AMY', name: '艾米' }],
+      categories: [
+        { name: '女装', prefix: 'A' },
+        { name: '男装', prefix: 'B' },
+        { name: '3C配件', prefix: 'C' },
+      ],
+      partitions: [
+        { key: 'main', label: '主图', fixed: true },
+        { key: 'detail', label: '详情图', fixed: true },
+        { key: 'sku', label: 'SKU图', fixed: true },
+        { key: 'reserve', label: '备用素材', fixed: false },
+      ],
+      naming: {
+        folderTemplate: '{品类}_{产品名}_{SKC}',
+        fileTemplate: '{品类}_{产品名}_{SKC}_{类型}_{序号}',
+      },
+      selectedOperator: '',
+    };
+  }
+
+  loadConfig() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        const def = this.defaultConfig();
+        return { ...def, ...saved, naming: { ...def.naming, ...saved.naming } };
+      }
+    } catch (e) { /* ignore */ }
+    return this.defaultConfig();
+  }
+
+  saveConfig() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.config));
+    } catch (e) { /* ignore */ }
+  }
+
+  applyConfigToUI() {
+    const sel = this.els.operatorSelect;
+    sel.innerHTML = this.config.operators.map(o =>
+      `<option value="${o.code}" ${o.code === this.config.selectedOperator ? 'selected' : ''}>${o.code} (${o.name})</option>`
+    ).join('');
+    if (this.config.operators.length === 0) {
+      sel.innerHTML = '<option value="">未设置</option>';
+    }
+
+    const catSel = this.els.createCategory;
+    catSel.innerHTML = this.config.categories.map(c =>
+      `<option value="${c.name}" data-prefix="${c.prefix}">${c.name} (${c.prefix}...)</option>`
+    ).join('');
+    if (this.config.categories.length === 0) {
+      catSel.innerHTML = '<option value="">请先配置品类</option>';
+    }
+  }
+
+  /* ==============================
+     DOM Cache
+  ============================== */
+
+  cacheDom() {
+    const id = (x) => document.getElementById(x);
+    this.els = {
+      operatorSelect: id('operatorSelect'),
+      configBtn: id('configBtn'),
+      selectFolderBtn: id('selectFolderBtn'),
+      addMoreBtn: id('addMoreBtn'),
+      exportBtn: id('exportBtn'),
+      folderInput: id('folderInput'),
+      addMoreInput: id('addMoreInput'),
+      fileInfo: id('fileInfo'),
+      groupList: id('groupList'),
+      sidebarResizeHandle: id('sidebarResizeHandle'),
+      createCategory: id('createCategory'),
+      createProduct: id('createProduct'),
+      createSKC: id('createSKC'),
+      createSKU: id('createSKU'),
+      createGroupBtn: id('createGroupBtn'),
+      contentTitle: id('contentTitle'),
+      contentHint: id('contentHint'),
+      contentBody: id('contentBody'),
+      emptyState: id('emptyState'),
+      viewContainer: id('viewContainer'),
+      ungroupedCount: id('ungroupedCount'),
+      // Config modal
+      configModal: id('configModal'),
+      configCloseBtn: id('configCloseBtn'),
+      configCancelBtn: id('configCancelBtn'),
+      configSaveBtn: id('configSaveBtn'),
+      configBody: id('configBody'),
+      operatorTableBody: id('operatorTableBody'),
+      newOpCode: id('newOpCode'),
+      newOpName: id('newOpName'),
+      addOperatorBtn: id('addOperatorBtn'),
+      categoryTableBody: id('categoryTableBody'),
+      newCatName: id('newCatName'),
+      newCatPrefix: id('newCatPrefix'),
+      addCategoryBtn: id('addCategoryBtn'),
+      partitionTableBody: id('partitionTableBody'),
+      folderTemplate: id('folderTemplate'),
+      fileTemplate: id('fileTemplate'),
+      namingPreview: id('namingPreview'),
+      importCsvBtn: id('importCsvBtn'),
+      exportCsvBtn: id('exportCsvBtn'),
+      csvInput: id('csvInput'),
+      exportConfigJsonBtn: id('exportConfigJsonBtn'),
+      importConfigJsonBtn: id('importConfigJsonBtn'),
+      configJsonInput: id('configJsonInput'),
+      // Progress
+      progressOverlay: id('progressOverlay'),
+      progressTitle: id('progressTitle'),
+      progressBar: id('progressBar'),
+      progressText: id('progressText'),
+      toast: id('toast'),
+    };
+  }
+
+  /* ==============================
+     Events
+  ============================== */
+
+  bindEvents() {
+    this.els.selectFolderBtn.addEventListener('click', () => this.els.folderInput.click());
+    this.els.folderInput.addEventListener('change', (e) => this.handleFolderSelect(e));
+    this.els.addMoreBtn.addEventListener('click', () => this.els.addMoreInput.click());
+    this.els.addMoreInput.addEventListener('change', (e) => this.handleAddMoreImages(e));
+    this.els.createGroupBtn.addEventListener('click', () => this.createGroup());
+    this.els.exportBtn.addEventListener('click', () => this.exportFiles());
+    this.els.operatorSelect.addEventListener('change', () => {
+      this.config.selectedOperator = this.els.operatorSelect.value;
+      this.saveConfig();
+    });
+
+    this.els.createCategory.addEventListener('change', () => this.suggestSKC());
+
+    // Config modal
+    this.els.configBtn.addEventListener('click', () => this.openConfig());
+    this.els.configCloseBtn.addEventListener('click', () => this.closeConfig());
+    this.els.configCancelBtn.addEventListener('click', () => this.closeConfig());
+    this.els.configSaveBtn.addEventListener('click', () => this.saveConfigFromUI());
+    this.els.addOperatorBtn.addEventListener('click', () => this.addOperator());
+    this.els.addCategoryBtn.addEventListener('click', () => this.addCategory());
+    this.els.importCsvBtn.addEventListener('click', () => this.els.csvInput.click());
+    this.els.csvInput.addEventListener('change', (e) => this.importCSV(e));
+    this.els.exportCsvBtn.addEventListener('click', () => this.exportCSV());
+    this.els.exportConfigJsonBtn.addEventListener('click', () => this.exportConfigJson());
+    this.els.importConfigJsonBtn.addEventListener('click', () => this.els.configJsonInput.click());
+    this.els.configJsonInput.addEventListener('change', (e) => this.importConfigJson(e));
+
+    this.els.folderTemplate.addEventListener('input', () => this.updateNamingPreview());
+    this.els.fileTemplate.addEventListener('input', () => this.updateNamingPreview());
+
+    // Sidebar delegation
+    this.els.groupList.addEventListener('click', (e) => {
+      const catHeader = e.target.closest('.cat-header');
+      if (catHeader) {
+        const catName = catHeader.dataset.category;
+        if (catName) this.toggleCategory(catName);
+        return;
+      }
+      const item = e.target.closest('.group-item');
+      if (!item) return;
+      if (e.target.closest('.g-del')) {
+        const g = item.dataset.group;
+        if (g && g !== '__ungrouped__') this.deleteGroup(g);
+        return;
+      }
+      this.selectView(item.dataset.group);
+    });
+
+    this.els.groupList.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const item = e.target.closest('.group-item');
+      if (item && item.dataset.group && item.dataset.group !== '__ungrouped__') {
+        item.style.background = 'var(--primary-light)';
+      }
+    });
+    this.els.groupList.addEventListener('dragleave', (e) => {
+      const item = e.target.closest('.group-item');
+      if (item) item.style.background = '';
+    });
+    this.els.groupList.addEventListener('drop', (e) => {
+      e.preventDefault();
+      document.querySelectorAll('.group-item').forEach(el => el.style.background = '');
+      const item = e.target.closest('.group-item');
+      if (!item || !item.dataset.group || item.dataset.group === '__ungrouped__') return;
+      if (this.draggedIndex >= 0) {
+        this.addToGroupDefault(this.draggedIndex, item.dataset.group);
+        this.draggedIndex = -1;
+      }
+    });
+
+    document.addEventListener('dragend', () => {
+      this.draggedIndex = -1;
+      this.draggedFromGroup = null;
+      this.draggedFromPartition = null;
+      document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      document.querySelectorAll('.group-item').forEach(el => el.style.background = '');
+    });
+
+    // Centralized click handler (remove + copy)
+    this.els.viewContainer.addEventListener('click', (e) => {
+      const copyBtn = e.target.closest('[data-action="copy"]');
+      if (copyBtn) {
+        const card = copyBtn.closest('.image-card');
+        if (!card) return;
+        const idx = parseInt(card.dataset.imageIndex);
+        const partEl = card.closest('[data-partition]');
+        if (!partEl) return;
+        const skc = partEl.dataset.skc;
+        const g = this.groups.get(skc);
+        if (!g) return;
+        g.partitions[partEl.dataset.partition].push(idx);
+        this.renderSidebar();
+        this.renderView(true);
+        return;
+      }
+
+      const rmBtn = e.target.closest('[data-action="remove"]');
+      if (!rmBtn) return;
+      const card = rmBtn.closest('.image-card');
+      if (!card) return;
+      const idx = parseInt(card.dataset.imageIndex);
+      const poolEl = card.closest('[data-pool]');
+      const partEl = card.closest('[data-partition]');
+      if (partEl) {
+        this.removeFromPartition(idx, partEl.dataset.partition);
+      } else {
+        this.markDeleted(idx);
+      }
+    });
+
+    // Sidebar resize
+    const sidebar = this.els.groupList.closest('.sidebar') || document.querySelector('.sidebar');
+    const handle = this.els.sidebarResizeHandle;
+    let resizing = false;
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      resizing = true;
+      handle.classList.add('active');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!resizing) return;
+      const w = Math.min(Math.max(e.clientX, 200), 500);
+      sidebar.style.width = w + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (resizing) {
+        resizing = false;
+        handle.classList.remove('active');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        localStorage.setItem('organizer_sidebar_width', sidebar.style.width);
+      }
+    });
+  }
+
+  restoreSidebarWidth() {
+    const saved = localStorage.getItem('organizer_sidebar_width');
+    if (saved) {
+      const sidebar = this.els.groupList.closest('.sidebar') || document.querySelector('.sidebar');
+      if (sidebar) sidebar.style.width = saved;
+    }
+  }
+
+  saveGroups() {
+    const data = [];
+    for (const [skc, g] of this.groups) {
+      data.push({
+        category: g.category,
+        productName: g.productName,
+        skc: g.skc,
+        sku: g.sku,
+        operatorCode: g.operatorCode,
+      });
+    }
+    try { localStorage.setItem(GROUPS_KEY, JSON.stringify(data)); }
+    catch (e) { /* quota exceeded etc */ }
+  }
+
+  restoreGroups() {
+    try {
+      const raw = localStorage.getItem(GROUPS_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      for (const item of data) {
+        if (item.skc && !this.groups.has(item.skc)) {
+          this.groups.set(item.skc, {
+            category: item.category || '',
+            productName: item.productName || '',
+            skc: item.skc,
+            sku: item.sku || '',
+            partitions: { main: [], detail: [], sku: [], reserve: [] },
+            operatorCode: item.operatorCode || '',
+          });
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  /* ==============================
+     Folder Selection
+  ============================== */
+
+  async handleFolderSelect(e) {
+    const fl = e.target.files;
+    if (!fl || fl.length === 0) return;
+    this.files = [];
+    this.deleted = new Set();
+    this.newRangeStart = Infinity;
+    for (const g of this.groups.values()) {
+      for (const k of PARTITION_KEYS) g.partitions[k] = [];
+    }
+    this.selectedView = '__ungrouped__';
+
+    const images = [];
+    for (const f of fl) {
+      if (f.type.startsWith('image/')) images.push(f);
+    }
+
+    for (const f of images) {
+      if (this.files.length >= 500) break;
+      try {
+        const dataUrl = await this.readFile(f);
+        const parts = f.name.split('.');
+        const ext = parts.length > 1 ? parts.pop().toLowerCase() : '';
+        this.files.push({ file: f, dataUrl, name: f.name, ext, size: f.size });
+      } catch (err) {
+        console.warn('跳过:', f.name);
+      }
+    }
+    this.els.folderInput.value = '';
+    this.updateFileInfo();
+    this.renderSidebar();
+    this.renderView();
+    this.els.exportBtn.disabled = this.files.length === 0;
+    this.toast(`已加载 ${this.files.length} 张图片`);
+  }
+
+  async handleAddMoreImages(e) {
+    const fl = e.target.files;
+    if (!fl || fl.length === 0) return;
+
+    const before = this.files.length;
+    this.newRangeStart = before;
+    const images = [];
+    for (const f of fl) {
+      if (f.type.startsWith('image/')) images.push(f);
+    }
+
+    for (const f of images) {
+      if (this.files.length >= 500) break;
+      try {
+        const dataUrl = await this.readFile(f);
+        const parts = f.name.split('.');
+        const ext = parts.length > 1 ? parts.pop().toLowerCase() : '';
+        this.files.push({ file: f, dataUrl, name: f.name, ext, size: f.size });
+      } catch (err) {
+        console.warn('跳过:', f.name);
+      }
+    }
+    this.els.addMoreInput.value = '';
+    this.updateFileInfo();
+    this.renderSidebar();
+    this.renderView();
+    this.els.exportBtn.disabled = this.files.length === 0;
+    this.toast(`已追加 ${this.files.length - before} 张图片`);
+  }
+
+  readFile(f) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(f);
+    });
+  }
+
+  /* ==============================
+     Group Management
+  ============================== */
+
+  suggestSKC() {
+    const sel = this.els.createCategory;
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.dataset.prefix) return;
+    const prefix = opt.dataset.prefix;
+    const last = this.lastSKCByPrefix(prefix);
+    const num = last ? String(parseInt(last.replace(prefix, '')) + 1).padStart(3, '0') : '001';
+    this.els.createSKC.value = prefix + num;
+  }
+
+  lastSKCByPrefix(prefix) {
+    let max = 0;
+    for (const g of this.groups.values()) {
+      if (g.skc && g.skc.startsWith(prefix)) {
+        const n = parseInt(g.skc.replace(prefix, '')) || 0;
+        if (n > max) max = n;
+      }
+    }
+    return max > 0 ? prefix + String(max).padStart(3, '0') : null;
+  }
+
+  createGroup() {
+    const cat = this.els.createCategory.value;
+    const prod = this.els.createProduct.value.trim();
+    const skc = this.els.createSKC.value.trim().toUpperCase();
+    const sku = this.els.createSKU.value.trim();
+
+    if (!cat) { this.toast('请先选择品类'); return; }
+    if (!prod) { this.toast('请输入产品名称'); return; }
+    if (!skc) { this.toast('请输入SKC货号'); return; }
+
+    if (this.groups.has(skc)) { this.toast('该SKC已存在'); return; }
+
+    const catObj = this.config.categories.find(c => c.name === cat);
+    if (catObj && !skc.startsWith(catObj.prefix)) {
+      if (!confirm(`SKC "${skc}" 的首字母 "${skc[0]}" 与品类「${cat}」(${catObj.prefix}) 不一致，是否仍然创建？`)) {
+        return;
+      }
+    }
+
+    const group = {
+      category: cat,
+      productName: prod,
+      skc,
+      sku,
+      partitions: { main: [], detail: [], sku: [], reserve: [] },
+      operatorCode: this.config.selectedOperator || '',
+    };
+
+    this.groups.set(skc, group);
+    this.saveGroups();
+    this.els.createSKU.value = '';
+    this.selectView(skc);
+    this.renderSidebar();
+    this.toast(`已创建: ${cat}_${prod}_${skc}`);
+  }
+
+  deleteGroup(skc) {
+    if (!confirm(`确定删除分组「${this.groupDisplayName(this.groups.get(skc))}」？图片会回到未分类。`)) return;
+    this.groups.delete(skc);
+    this.saveGroups();
+    if (this.selectedView === skc) this.selectedView = '__ungrouped__';
+    this.renderSidebar();
+    this.renderView();
+  }
+
+  addToGroupDefault(imageIndex, skc) {
+    const g = this.groups.get(skc);
+    if (!g) return;
+    if (g.partitions.main.includes(imageIndex) ||
+        g.partitions.detail.includes(imageIndex) ||
+        g.partitions.sku.includes(imageIndex) ||
+        g.partitions.reserve.includes(imageIndex)) return;
+    g.partitions.main.push(imageIndex);
+    this.renderSidebar();
+    if (this.selectedView === skc) this.renderView();
+  }
+
+  addToPartition(imageIndex, skc, partKey) {
+    const g = this.groups.get(skc);
+    if (!g) return;
+    if (this.draggedFromPartition && this.draggedFromPartition !== partKey) {
+      const srcArr = g.partitions[this.draggedFromPartition];
+      const idx = srcArr.indexOf(imageIndex);
+      if (idx >= 0) srcArr.splice(idx, 1);
+    }
+    if (!g.partitions[partKey].includes(imageIndex)) {
+      g.partitions[partKey].push(imageIndex);
+    }
+    this.renderSidebar();
+    if (this.selectedView === skc) this.renderView(true);
+  }
+
+  removeFromPartition(imageIndex, partKey) {
+    for (const g of this.groups.values()) {
+      const idx = g.partitions[partKey].indexOf(imageIndex);
+      if (idx >= 0) { g.partitions[partKey].splice(idx, 1); break; }
+    }
+    this.renderSidebar();
+    this.renderView(true);
+  }
+
+  removeFromAll(imageIndex) {
+    for (const g of this.groups.values()) {
+      for (const k of PARTITION_KEYS) {
+        const idx = g.partitions[k].indexOf(imageIndex);
+        if (idx >= 0) g.partitions[k].splice(idx, 1);
+      }
+    }
+    this.renderSidebar();
+    this.renderView(true);
+  }
+
+  markDeleted(imageIndex) {
+    for (const g of this.groups.values()) {
+      for (const k of PARTITION_KEYS) {
+        const idx = g.partitions[k].indexOf(imageIndex);
+        if (idx >= 0) g.partitions[k].splice(idx, 1);
+      }
+    }
+    this.deleted.add(imageIndex);
+    this.renderSidebar();
+    this.renderView(true);
+  }
+
+  moveImageInPartition(skc, partKey, fromIdx, toIdx) {
+    const arr = this.groups.get(skc).partitions[partKey];
+    if (fromIdx < 0 || fromIdx >= arr.length || toIdx < 0 || toIdx >= arr.length) return;
+    const [item] = arr.splice(fromIdx, 1);
+    arr.splice(toIdx, 0, item);
+    this.renderView(true);
+  }
+
+  groupDisplayName(g) {
+    return `${g.category}_${g.productName}_${g.skc}`;
+  }
+
+  shortGroupDisplayName(g) {
+    return `${g.skc}_${g.productName}`;
+  }
+
+  getCollapsedCats() {
+    try {
+      const raw = localStorage.getItem(COLLAPSED_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (e) { return new Set(); }
+  }
+
+  saveCollapsedCats(set) {
+    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...set])); }
+    catch (e) { /* ignore */ }
+  }
+
+  toggleCategory(catName) {
+    const collapsed = this.getCollapsedCats();
+    if (collapsed.has(catName)) {
+      collapsed.delete(catName);
+    } else {
+      collapsed.add(catName);
+    }
+    this.saveCollapsedCats(collapsed);
+    this.renderSidebar();
+  }
+
+  /* ==============================
+     Ungrouped Helpers
+  ============================== */
+
+  getUngroupedIndices() {
+    const used = new Set();
+    for (const g of this.groups.values()) {
+      for (const k of PARTITION_KEYS) {
+        for (const idx of g.partitions[k]) used.add(idx);
+      }
+    }
+    const res = [];
+    for (let i = 0; i < this.files.length; i++) {
+      if (!used.has(i) && !this.deleted.has(i)) res.push(i);
+    }
+    return res;
+  }
+
+  totalGroupedCount() {
+    let c = 0;
+    for (const g of this.groups.values()) {
+      for (const k of PARTITION_KEYS) c += g.partitions[k].length;
+    }
+    return c;
+  }
+
+  updateFileInfo() {
+    const total = this.files.length - this.deleted.size;
+    const grouped = this.totalGroupedCount();
+    this.els.fileInfo.textContent = `共 ${total} 张 | 已分类 ${grouped} 张`;
+    this.els.ungroupedCount.textContent = total - grouped;
+  }
+
+  /* ==============================
+     View Selection
+  ============================== */
+
+  selectView(name) {
+    this.selectedView = name;
+    this.renderSidebar();
+    this.renderView();
+  }
+
+  /* ==============================
+     Render: Sidebar
+  ============================== */
+
+  renderSidebar() {
+    const list = this.els.groupList;
+    const collapsed = this.getCollapsedCats();
+    const ungrouped = this.getUngroupedIndices().length;
+    let html = `<div class="group-item ungrouped ${this.selectedView === '__ungrouped__' ? 'active' : ''}" data-group="__ungrouped__">
+      <span class="g-icon">📋</span><span class="g-name">未分类</span><span class="g-count">${ungrouped}</span>
+    </div>`;
+
+    const cats = this.config.categories;
+    const groupsByCat = new Map();
+    const orphanGroups = [];
+
+    for (const [skc, g] of this.groups) {
+      const catName = g.category;
+      if (cats.some(c => c.name === catName)) {
+        if (!groupsByCat.has(catName)) groupsByCat.set(catName, []);
+        groupsByCat.get(catName).push({ skc, g });
+      } else {
+        orphanGroups.push({ skc, g });
+      }
+    }
+
+    for (const arr of groupsByCat.values()) {
+      arr.sort((a, b) => a.skc.localeCompare(b.skc));
+    }
+
+    for (const cat of cats) {
+      const items = groupsByCat.get(cat.name) || [];
+      if (items.length === 0) continue;
+      const total = items.reduce((s, { g }) => s + PARTITION_KEYS.reduce((t, k) => t + g.partitions[k].length, 0), 0);
+      const isCollapsed = collapsed.has(cat.name);
+      html += `<div class="cat-section">
+        <div class="cat-header" data-category="${cat.name}">
+          <span class="cat-arrow ${isCollapsed ? 'collapsed' : ''}">▼</span>
+          <span class="cat-name">${cat.name}</span>
+          <span class="cat-count">${total}</span>
+        </div>
+        <div class="cat-body ${isCollapsed ? 'collapsed' : ''}">`;
+
+      for (const { skc, g } of items) {
+        const cnt = PARTITION_KEYS.reduce((t, k) => t + g.partitions[k].length, 0);
+        const name = this.shortGroupDisplayName(g);
+        html += `<div class="group-item cat-item ${this.selectedView === skc ? 'active' : ''}" data-group="${skc}">
+          <span class="g-name" title="${this.groupDisplayName(g)}">${name}</span><span class="g-count">${cnt}</span>
+          <button class="g-del" title="删除分组">✕</button>
+        </div>`;
+      }
+
+      html += `</div></div>`;
+    }
+
+    if (orphanGroups.length > 0) {
+      const total = orphanGroups.reduce((s, { g }) => s + PARTITION_KEYS.reduce((t, k) => t + g.partitions[k].length, 0), 0);
+      html += `<div class="cat-section">
+        <div class="cat-header" data-category="__other__">
+          <span class="cat-arrow">▼</span><span class="cat-name">其他</span><span class="cat-count">${total}</span>
+        </div>
+        <div class="cat-body">`;
+      for (const { skc, g } of orphanGroups) {
+        const cnt = PARTITION_KEYS.reduce((t, k) => t + g.partitions[k].length, 0);
+        html += `<div class="group-item cat-item ${this.selectedView === skc ? 'active' : ''}" data-group="${skc}">
+          <span class="g-name" title="${this.groupDisplayName(g)}">${this.shortGroupDisplayName(g)}</span><span class="g-count">${cnt}</span>
+          <button class="g-del" title="删除分组">✕</button>
+        </div>`;
+      }
+      html += `</div></div>`;
+    }
+
+    list.innerHTML = html;
+    this.updateFileInfo();
+  }
+
+  /* ==============================
+     Render: Content View
+  ============================== */
+
+  renderView(preserveScroll = false) {
+    const container = this.els.viewContainer;
+    const empty = this.els.emptyState;
+
+    if (this.files.length === 0) {
+      empty.style.display = 'flex';
+      container.style.display = 'none';
+      return;
+    }
+    empty.style.display = 'none';
+    container.style.display = 'block';
+
+    if (this.selectedView === '__ungrouped__') {
+      this.renderUngroupedView(container);
+    } else if (this.groups.has(this.selectedView)) {
+      this.renderGroupView(container, this.groups.get(this.selectedView), preserveScroll);
+    }
+  }
+
+  renderUngroupedView(container) {
+    const indices = this.getUngroupedIndices();
+    this.els.contentTitle.textContent = '未分类图片';
+    this.els.contentHint.textContent = indices.length > 0 ? '拖拽图片到左侧分组，或先创建分组再归类' : '所有图片已分类完成';
+
+    if (indices.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="big-icon">🎉</div><p>所有图片已分类完成！</p></div>';
+      return;
+    }
+
+    let html = '<div class="image-grid">';
+    for (let i = 0; i < indices.length; i++) {
+      const idx = indices[i];
+      const f = this.files[idx];
+      if (!f) continue;
+      html += this.imageCardHTML(idx, f);
+    }
+    html += '</div>';
+    container.innerHTML = html;
+    this.bindImageCardDrag(container);
+  }
+
+  renderGroupView(container, g, preserveScroll) {
+    const displayName = this.groupDisplayName(g);
+    this.els.contentTitle.textContent = `📁 ${displayName}`;
+    this.els.contentHint.textContent = '从待归类拖入分区，📋 复制，✕ 移除，拖拽调整顺序';
+
+    let html = '';
+
+    const ungroupedIndices = this.getUngroupedIndices();
+    const oldIndices = ungroupedIndices.filter(idx => idx < this.newRangeStart);
+    const newIndices = ungroupedIndices.filter(idx => idx >= this.newRangeStart);
+    const hasNew = newIndices.length > 0;
+    html += `<div class="pool-section">
+      <div class="pool-header">
+        <span class="pool-label">📋 待归类素材</span>
+        <span class="pool-count">${ungroupedIndices.length} 张未分配${hasNew ? `（新增 ${newIndices.length} 张）` : ''}</span>
+      </div>
+      <div class="pool-grid ${ungroupedIndices.length === 0 ? 'empty' : ''}" data-pool="true" data-skc="${g.skc}">
+        ${ungroupedIndices.length === 0
+          ? '<span class="placeholder">所有图片已分配到各分区</span>'
+          : [
+              ...oldIndices.map(idx => {
+                const f = this.files[idx];
+                return f ? this.imageCardHTML(idx, f, true) : '';
+              }),
+              ...(hasNew && oldIndices.length > 0 ? ['<div class="pool-divider">── 以下为本次新增 ──</div>'] : []),
+              ...newIndices.map(idx => {
+                const f = this.files[idx];
+                return f ? this.imageCardHTML(idx, f, true, -1, true) : '';
+              }),
+            ].join('')
+        }
+      </div>
+    </div>`;
+
+    const parts = this.config.partitions;
+    for (const p of parts) {
+      const images = g.partitions[p.key] || [];
+      html += `<div class="partition-section">
+        <div class="partition-header">
+          <span class="p-label">📌 ${p.label}</span>
+          <span class="p-count">${images.length} 张</span>
+        </div>
+        <div class="partition-row ${images.length === 0 ? 'empty' : ''}" data-partition="${p.key}" data-skc="${g.skc}">
+          ${images.length === 0
+            ? `<span class="placeholder">拖拽图片到此处 → 自动标记为「${p.label}」</span>`
+            : images.map((idx, di) => {
+              const f = this.files[idx];
+              return f ? this.imageCardHTML(idx, f, false, di) : '';
+            }).join('')
+          }
+        </div>
+      </div>`;
+    }
+
+    container.innerHTML = html;
+    this.bindPartitionDrag(container, g.skc);
+  }
+
+  imageCardHTML(idx, f, isPool = false, displayIndex = -1, isNew = false) {
+    const sizeStr = f.size < 1048576 ? (f.size / 1024).toFixed(0) + 'KB' : (f.size / 1048576).toFixed(1) + 'MB';
+    return `<div class="image-card" draggable="true" data-image-index="${idx}" ${displayIndex >= 0 ? `data-display-index="${displayIndex}"` : ''} ${isPool ? 'data-pool="true"' : ''}>
+      <div class="thumb">
+        <img src="${f.dataUrl}" alt="${f.name}" loading="lazy">
+        ${isNew ? '<span class="badge-new">NEW</span>' : ''}
+        <span class="badge">${sizeStr}</span>
+      </div>
+      <div class="info">
+        <span class="name" title="${f.name}">${f.name}</span>
+        <div class="img-actions">
+          ${!isPool && displayIndex >= 0 ? '<button class="img-copy" data-action="copy" title="复制到此分区">📋</button>' : ''}
+          <button class="img-remove" data-action="remove" title="移出分组">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  /* ==============================
+     Drag & Drop
+  ============================== */
+
+  bindImageCardDrag(container) {
+    container.querySelectorAll('.image-card').forEach(card => {
+      card.addEventListener('dragstart', (e) => {
+        this.draggedIndex = parseInt(card.dataset.imageIndex);
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(this.draggedIndex));
+      });
+      card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    });
+  }
+
+  bindPartitionDrag(container, skc) {
+    // Image cards
+    container.querySelectorAll('.image-card').forEach(card => {
+      card.addEventListener('dragstart', (e) => {
+        this.draggedIndex = parseInt(card.dataset.imageIndex);
+        this.draggedFromPartition = card.closest('[data-partition]')?.dataset?.partition || null;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(this.draggedIndex));
+      });
+      card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    });
+
+    // Pool grid drop target
+    const pool = container.querySelector('[data-pool="true"]');
+    if (pool) {
+      pool.addEventListener('dragover', (e) => { e.preventDefault(); pool.classList.add('drag-over'); });
+      pool.addEventListener('dragleave', () => pool.classList.remove('drag-over'));
+      pool.addEventListener('drop', (e) => {
+        e.preventDefault();
+        pool.classList.remove('drag-over');
+        if (this.draggedIndex >= 0) {
+          this.removeFromAll(this.draggedIndex);
+          this.draggedIndex = -1;
+        }
+      });
+    }
+
+    // Partition drop targets
+    container.querySelectorAll('[data-partition]').forEach(row => {
+      row.addEventListener('dragover', (e) => { e.preventDefault(); row.classList.add('drag-over'); });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        const partKey = row.dataset.partition;
+        const g = this.groups.get(skc);
+        if (!g || this.draggedIndex < 0) return;
+
+        const targetCard = e.target.closest('.image-card');
+        if (targetCard && this.draggedFromPartition === partKey) {
+          const fromIdx = parseInt(targetCard.dataset.displayIndex);
+          const currentArr = g.partitions[partKey];
+          const realFrom = currentArr.indexOf(this.draggedIndex);
+          if (realFrom >= 0 && fromIdx >= 0 && realFrom !== fromIdx) {
+            this.moveImageInPartition(skc, partKey, realFrom, fromIdx);
+            this.draggedIndex = -1;
+            return;
+          }
+        }
+
+        this.addToPartition(this.draggedIndex, skc, partKey);
+        this.draggedIndex = -1;
+      });
+    });
+  }
+
+  /* ==============================
+     Export
+  ============================== */
+
+  async exportFiles() {
+    if (this.groups.size === 0) { this.toast('请先创建分组'); return; }
+    const hasContent = Array.from(this.groups.values()).some(g => PARTITION_KEYS.some(k => g.partitions[k].length > 0));
+    if (!hasContent) { this.toast('分组还没有图片'); return; }
+
+    let dirHandle;
+    try {
+      dirHandle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
+    } catch (err) {
+      if (err.name === 'AbortError' || err.name === 'SecurityError') return;
+      this.toast('选择输出文件夹失败'); return;
+    }
+
+    this.els.progressOverlay.classList.add('show');
+    this.els.progressTitle.textContent = '正在导出整理...';
+
+    const { folderTemplate, fileTemplate } = this.config.naming;
+    const tasks = [];
+
+    for (const [skc, g] of this.groups) {
+      const vars = {
+        '{品类}': g.category,
+        '{产品名}': g.productName,
+        '{SKC}': g.skc,
+        '{SKU}': g.sku || '',
+        '{运营代号}': g.operatorCode || '',
+      };
+
+      let folderName = folderTemplate;
+      for (const [key, val] of Object.entries(vars)) {
+        folderName = folderName.replaceAll(key, val);
+      }
+      folderName = this.sanitizeName(folderName);
+
+      for (const p of this.config.partitions) {
+        const images = g.partitions[p.key] || [];
+        for (let i = 0; i < images.length; i++) {
+          const idx = images[i];
+          if (this.deleted.has(idx)) continue;
+          const f = this.files[idx];
+          if (!f) continue;
+          const fileVars = { ...vars, '{类型}': p.label, '{序号}': String(i + 1).padStart(2, '0') };
+          let fileName = fileTemplate;
+          for (const [key, val] of Object.entries(fileVars)) {
+            fileName = fileName.replaceAll(key, val);
+          }
+          fileName = this.sanitizeName(fileName) + '.' + f.ext;
+          tasks.push({ folderName, fileName, file: f.file });
+        }
+      }
+    }
+
+    const total = tasks.length;
+    let done = 0, failed = 0;
+
+    for (const t of tasks) {
+      try {
+        const fd = await dirHandle.getDirectoryHandle(t.folderName, { create: true });
+        const fh = await fd.getFileHandle(t.fileName, { create: true });
+        const w = await fh.createWritable({ keepExistingData: false });
+        await w.write(t.file);
+        await w.close();
+        done++;
+      } catch (err) {
+        console.error('导出失败:', t.fileName, err);
+        failed++;
+      }
+      this.els.progressBar.style.width = Math.round((done / total) * 100) + '%';
+      this.els.progressText.textContent = `${done} / ${total}`;
+    }
+
+    this.els.progressTitle.textContent = failed === 0 ? '✅ 导出完成' : '⚠️ 导出完成（部分失败）';
+    this.els.progressText.textContent = `成功 ${done} 张` + (failed ? `，失败 ${failed} 张` : '');
+    setTimeout(() => {
+      this.els.progressOverlay.classList.remove('show');
+      this.els.progressBar.style.width = '0%';
+    }, 2000);
+    this.toast(failed === 0 ? `✅ 成功导出 ${done} 张图片` : `⚠️ 导出完成：成功 ${done} 张，失败 ${failed} 张`);
+  }
+
+  sanitizeName(name) {
+    return name.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  }
+
+  /* ==============================
+     Config Modal
+  ============================== */
+
+  openConfig() {
+    this.renderConfigForm();
+    this.els.configModal.classList.add('show');
+  }
+
+  closeConfig() {
+    this.els.configModal.classList.remove('show');
+  }
+
+  renderConfigForm() {
+    // Operators
+    let opHtml = '';
+    for (const op of this.config.operators) {
+      opHtml += `<tr><td><input type="text" value="${op.code}" class="op-code" data-idx="${this.config.operators.indexOf(op)}"></td>
+        <td><input type="text" value="${op.name}" class="op-name" data-idx="${this.config.operators.indexOf(op)}"></td>
+        <td class="row-del"><button class="del-op" data-idx="${this.config.operators.indexOf(op)}">✕</button></td></tr>`;
+    }
+    this.els.operatorTableBody.innerHTML = opHtml || '<tr><td colspan="3" style="color:#aaa;text-align:center;">暂无运营，请添加</td></tr>';
+
+    // Categories
+    let catHtml = '';
+    for (const c of this.config.categories) {
+      catHtml += `<tr><td><input type="text" value="${c.name}" class="cat-name" data-idx="${this.config.categories.indexOf(c)}"></td>
+        <td><input type="text" value="${c.prefix}" class="cat-prefix" data-idx="${this.config.categories.indexOf(c)}" style="text-transform:uppercase;"></td>
+        <td class="row-del"><button class="del-cat" data-idx="${this.config.categories.indexOf(c)}">✕</button></td></tr>`;
+    }
+    this.els.categoryTableBody.innerHTML = catHtml || '<tr><td colspan="3" style="color:#aaa;text-align:center;">暂无品类，请添加</td></tr>';
+
+    // Partitions
+    let partHtml = '';
+    for (const p of this.config.partitions) {
+      const isFixed = p.fixed ? 'checked disabled' : '';
+      partHtml += `<tr>
+        <td><input type="text" value="${p.label}" class="part-label" data-key="${p.key}" ${p.fixed ? 'disabled' : ''}></td>
+        <td style="color:var(--text-secondary);font-size:12px;">${p.key}</td>
+        <td style="text-align:center;"><input type="checkbox" ${isFixed}></td>
+      </tr>`;
+    }
+    this.els.partitionTableBody.innerHTML = partHtml;
+
+    // Naming
+    this.els.folderTemplate.value = this.config.naming.folderTemplate;
+    this.els.fileTemplate.value = this.config.naming.fileTemplate;
+    this.updateNamingPreview();
+
+    // Bind delete events
+    this.els.operatorTableBody.querySelectorAll('.del-op').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx);
+        this.config.operators.splice(idx, 1);
+        this.renderConfigForm();
+      });
+    });
+    this.els.categoryTableBody.querySelectorAll('.del-cat').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx);
+        this.config.categories.splice(idx, 1);
+        this.renderConfigForm();
+      });
+    });
+  }
+
+  addOperator() {
+    const code = this.els.newOpCode.value.trim().toUpperCase();
+    const name = this.els.newOpName.value.trim();
+    if (!code || !name) { this.toast('请填写运营代号和名字'); return; }
+    if (this.config.operators.some(o => o.code === code)) { this.toast('代号已存在'); return; }
+    this.config.operators.push({ code, name });
+    this.els.newOpCode.value = '';
+    this.els.newOpName.value = '';
+    this.renderConfigForm();
+  }
+
+  addCategory() {
+    const name = this.els.newCatName.value.trim();
+    const prefix = this.els.newCatPrefix.value.trim().toUpperCase();
+    if (!name || !prefix) { this.toast('请填写品类名称和前缀'); return; }
+    if (!/^[A-Z]$/.test(prefix)) { this.toast('前缀只能是一个大写字母 A-Z'); return; }
+    if (this.config.categories.some(c => c.name === name)) { this.toast('品类已存在'); return; }
+    this.config.categories.push({ name, prefix });
+    this.els.newCatName.value = '';
+    this.els.newCatPrefix.value = '';
+    this.renderConfigForm();
+  }
+
+  updateNamingPreview() {
+    const folderTpl = this.els.folderTemplate.value;
+    const fileTpl = this.els.fileTemplate.value;
+    const folder = folderTpl.replace('{品类}', '女装').replace('{产品名}', '碎花连衣裙').replace('{SKC}', 'A001').replace('{SKU}', 'Red-M').replace('{运营代号}', 'AMY').replace('{类型}', '').replace('{序号}', '');
+    const file = fileTpl.replace('{品类}', '女装').replace('{产品名}', '碎花连衣裙').replace('{SKC}', 'A001').replace('{SKU}', '').replace('{运营代号}', 'AMY').replace('{类型}', '主图').replace('{序号}', '01');
+    this.els.namingPreview.textContent = `${this.sanitizeName(folder)} / ${this.sanitizeName(file)}.jpg`;
+  }
+
+  saveConfigFromUI() {
+    // Read operators
+    this.els.operatorTableBody.querySelectorAll('tr').forEach(tr => {
+      const codeInput = tr.querySelector('.op-code');
+      const nameInput = tr.querySelector('.op-name');
+      if (codeInput && nameInput) {
+        const idx = parseInt(codeInput.dataset.idx);
+        if (idx >= 0 && idx < this.config.operators.length) {
+          this.config.operators[idx].code = codeInput.value.trim().toUpperCase();
+          this.config.operators[idx].name = nameInput.value.trim();
+        }
+      }
+    });
+
+    // Read categories
+    this.els.categoryTableBody.querySelectorAll('tr').forEach(tr => {
+      const nameInput = tr.querySelector('.cat-name');
+      const prefixInput = tr.querySelector('.cat-prefix');
+      if (nameInput && prefixInput) {
+        const idx = parseInt(nameInput.dataset.idx);
+        if (idx >= 0 && idx < this.config.categories.length) {
+          this.config.categories[idx].name = nameInput.value.trim();
+          this.config.categories[idx].prefix = prefixInput.value.trim().toUpperCase();
+        }
+      }
+    });
+
+    // Read partitions (only reserve label)
+    this.els.partitionTableBody.querySelectorAll('tr').forEach(tr => {
+      const input = tr.querySelector('.part-label');
+      if (input && !input.disabled) {
+        const key = input.dataset.key;
+        const p = this.config.partitions.find(x => x.key === key);
+        if (p) p.label = input.value.trim() || p.label;
+      }
+    });
+
+    // Read naming templates
+    this.config.naming.folderTemplate = this.els.folderTemplate.value;
+    this.config.naming.fileTemplate = this.els.fileTemplate.value;
+
+    this.saveConfig();
+    this.applyConfigToUI();
+    this.renderSidebar();
+    this.renderView();
+    this.closeConfig();
+    this.toast('配置已保存');
+  }
+
+  /* ==============================
+     CSV Import/Export (Feishu)
+  ============================== */
+
+  importCSV(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const text = ev.target.result;
+        const lines = text.split('\n').filter(l => l.trim());
+        if (lines.length < 2) { this.toast('CSV为空或只有表头'); return; }
+
+        const headers = lines[0].split(',').map(h => h.trim());
+        let importCount = 0;
+        for (let i = 1; i < lines.length; i++) {
+          const vals = lines[i].split(',').map(v => v.trim());
+          const skc = vals[0];
+          if (!skc || this.groups.has(skc)) continue;
+          const cat = vals[1] || '';
+          const prod = vals[2] || '';
+          const sku = vals[3] || '';
+          const op = vals[4] || '';
+
+          const catConfig = this.config.categories.find(c => c.name === cat);
+          if (catConfig && prod && skc) {
+            this.groups.set(skc, {
+              category: cat,
+              productName: prod,
+              skc,
+              sku,
+              partitions: { main: [], detail: [], sku: [], reserve: [] },
+              operatorCode: op,
+            });
+            importCount++;
+          }
+        }
+        this.renderSidebar();
+        this.renderView();
+        this.toast(`从CSV导入 ${importCount} 个分组`);
+      } catch (err) {
+        this.toast('CSV解析失败: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    this.els.csvInput.value = '';
+  }
+
+  exportCSV() {
+    const rows = [['SKC', '品类', '产品名', 'SKU列表', '运营代号', '状态', '上架日期', '链接地址', '备注'].join(',')];
+    for (const [skc, g] of this.groups) {
+      const total = PARTITION_KEYS.reduce((s, k) => s + g.partitions[k].length, 0);
+      const status = total > 0 ? '处理中' : '待处理';
+      rows.push([skc, g.category, g.productName, g.sku || '', g.operatorCode || '', status, '', '', ''].join(','));
+    }
+    const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `图片整理_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    this.toast('CSV已导出');
+  }
+
+  exportConfigJson() {
+    const exported = {
+      operators: this.config.operators,
+      categories: this.config.categories,
+      partitions: this.config.partitions,
+      naming: this.config.naming,
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `图片整理配置_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    this.toast('配置已导出');
+  }
+
+  importConfigJson(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.operators) this.config.operators = data.operators;
+        if (data.categories) this.config.categories = data.categories;
+        if (data.partitions) this.config.partitions = data.partitions;
+        if (data.naming) this.config.naming = { ...this.config.naming, ...data.naming };
+        this.saveConfig();
+        this.applyConfigToUI();
+        this.renderConfigForm();
+        this.renderSidebar();
+        this.toast('配置已导入');
+      } catch (err) {
+        this.toast('配置文件格式错误: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    this.els.configJsonInput.value = '';
+  }
+
+  /* ==============================
+     Utility
+  ============================== */
+
+  toast(msg) {
+    const el = this.els.toast;
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => new ImageOrganizer());
+</script>
+</body>
+</html>
