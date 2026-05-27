@@ -4,6 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>图片批量整理工具</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://npdvctxvnvlnphahjthn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wZHZjdHh2bnZsbnBoYWhqdGhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MzcwNDQsImV4cCI6MjA5NTIxMzA0NH0.qpu_TXKNViP6Lyihf6m5dDDNsPbP9Xv8CYyWjOjen_Q';
+let supabase = null;
+try {
+  supabase = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch (e) {
+  console.warn('Supabase initialization failed:', e);
+}
+</script>
 <style>
 :root {
   --primary: #4f6ef7;
@@ -208,6 +219,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 <div class="header">
   <h1><span>📁</span> 图片批量整理工具</h1>
   <div class="header-right">
+    <div id="syncStatus" style="display:flex;align-items:center;gap:6px;font-size:12px;">
+      <span id="syncDot" style="width:8px;height:8px;border-radius:50%;background:#ccc;"></span>
+      <span id="syncText" style="color:#7f8c8d;">云端：离线</span>
+    </div>
     <div class="operator-select">
       <span>运营</span>
       <select id="operatorSelect"><option value="">未设置</option></select>
@@ -386,15 +401,98 @@ class ImageOrganizer {
     this.draggedFromGroup = null;
     this.draggedFromPartition = null;
     this.nextTempId = 1;
-    this.config = this.loadConfig();
+    this.cloudConnected = false;
     this.els = {};
     this.cacheDom();
+    this.initCloudSync();
     this.restoreSidebarWidth();
-    this.restoreGroups();
     this.applyConfigToUI();
     this.bindEvents();
     this.renderSidebar();
     this.renderView();
+  }
+
+  setSyncStatus(connected, text = null) {
+    const dot = this.els.syncDot;
+    const txt = this.els.syncText;
+    dot.style.background = connected ? '#27ae60' : '#ccc';
+    txt.textContent = text || (connected ? '云端：已连接' : '云端：离线');
+    this.cloudConnected = connected;
+  }
+
+  async initCloudSync() {
+    if (!supabase) {
+      this.setSyncStatus(false);
+      this.config = this.loadConfig();
+      this.restoreGroups();
+      return;
+    }
+    try {
+      await this.loadFromCloud();
+      this.setSyncStatus(true);
+    } catch (e) {
+      console.warn('Cloud load failed, using local:', e);
+      this.setSyncStatus(false);
+      this.config = this.loadConfig();
+      this.restoreGroups();
+    }
+  }
+
+  async loadFromCloud() {
+    // Load config
+    const { data: configData, error: configErr } = await supabase
+      .from('config')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle();
+    
+    if (configErr) throw configErr;
+    
+    if (configData) {
+      this.config = {
+        operators: configData.operators || [],
+        categories: configData.categories || [],
+        partitions: configData.partitions || [],
+        naming: configData.naming || {},
+        selectedOperator: configData.selected_operator || '',
+      };
+    } else {
+      this.config = this.defaultConfig();
+    }
+
+    // Load groups
+    const { data: groupsData, error: groupsErr } = await supabase
+      .from('groups')
+      .select('*');
+    
+    if (groupsErr) throw groupsErr;
+    
+    this.groups = new Map();
+    for (const g of (groupsData || [])) {
+      this.groups.set(g.skc, {
+        category: g.category || '',
+        productName: g.product_name || '',
+        skc: g.skc,
+        sku: g.sku || '',
+        partitions: { main: [], detail: [], sku: [], reserve: [] },
+        operatorCode: g.operator_code || '',
+      });
+    }
+  }
+
+  async saveToCloud() {
+    if (!this.cloudConnected) return;
+    
+    // Save config
+    await supabase.from('config').upsert({
+      id: 1,
+      operators: this.config.operators,
+      categories: this.config.categories,
+      partitions: this.config.partitions,
+      naming: this.config.naming,
+      selected_operator: this.config.selectedOperator,
+      updated_at: new Date().toISOString(),
+    });
   }
 
   /* ==============================
@@ -439,6 +537,7 @@ class ImageOrganizer {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.config));
     } catch (e) { /* ignore */ }
+    this.saveToCloud().catch(e => console.warn('Cloud save failed:', e));
   }
 
   applyConfigToUI() {
@@ -466,6 +565,8 @@ class ImageOrganizer {
   cacheDom() {
     const id = (x) => document.getElementById(x);
     this.els = {
+      syncDot: id('syncDot'),
+      syncText: id('syncText'),
       operatorSelect: id('operatorSelect'),
       configBtn: id('configBtn'),
       selectFolderBtn: id('selectFolderBtn'),
@@ -839,16 +940,43 @@ class ImageOrganizer {
 
     this.groups.set(skc, group);
     this.saveGroups();
+    this.saveGroupToCloud(skc, group);
     this.els.createSKU.value = '';
     this.selectView(skc);
     this.renderSidebar();
     this.toast(`已创建: ${cat}_${prod}_${skc}`);
   }
 
+  async saveGroupToCloud(skc, group) {
+    if (!this.cloudConnected || !supabase) return;
+    try {
+      await supabase.from('groups').upsert({
+        skc,
+        category: group.category || '',
+        product_name: group.productName || '',
+        sku: group.sku || '',
+        operator_code: group.operatorCode || '',
+        updated_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Failed to save group to cloud:', e);
+    }
+  }
+
+  async deleteGroupFromCloud(skc) {
+    if (!this.cloudConnected || !supabase) return;
+    try {
+      await supabase.from('groups').delete().eq('skc', skc);
+    } catch (e) {
+      console.warn('Failed to delete group from cloud:', e);
+    }
+  }
+
   deleteGroup(skc) {
     if (!confirm(`确定删除分组「${this.groupDisplayName(this.groups.get(skc))}」？图片会回到未分类。`)) return;
     this.groups.delete(skc);
     this.saveGroups();
+    this.deleteGroupFromCloud(skc);
     if (this.selectedView === skc) this.selectedView = '__ungrouped__';
     this.renderSidebar();
     this.renderView();
