@@ -4,15 +4,26 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>图片批量整理工具</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL = 'https://npdvctxvnvlnphahjthn.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wZHZjdHh2bnZsbnBoYWhqdGhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MzcwNDQsImV4cCI6MjA5NTIxMzA0NH0.qpu_TXKNViP6Lyihf6m5dDDNsPbP9Xv8CYyWjOjen_Q';
-let supabase = null;
-try {
-  supabase = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-} catch (e) {
-  console.warn('Supabase initialization failed:', e);
+
+async function supabaseFetch(path, options = {}) {
+  const { method = 'GET', body, params = '' } = options;
+  const url = `${SUPABASE_URL}/rest/v1/${path}${params}`;
+  const res = await fetch(url, {
+    method,
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      ...(options.prefer ? { 'Prefer': options.prefer } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`Supabase ${method} ${path}: ${res.status}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 </script>
 <style>
@@ -404,12 +415,14 @@ class ImageOrganizer {
     this.cloudConnected = false;
     this.els = {};
     this.cacheDom();
-    this.initCloudSync();
+    this.config = this.loadConfig();
+    this.restoreGroups();
     this.restoreSidebarWidth();
     this.applyConfigToUI();
     this.bindEvents();
     this.renderSidebar();
     this.renderView();
+    this.initCloudSync();
   }
 
   setSyncStatus(connected, text = null) {
@@ -421,78 +434,79 @@ class ImageOrganizer {
   }
 
   async initCloudSync() {
-    if (!supabase) {
-      this.setSyncStatus(false);
-      this.config = this.loadConfig();
-      this.restoreGroups();
-      return;
-    }
     try {
       await this.loadFromCloud();
       this.setSyncStatus(true);
+      this.applyConfigToUI();
+      this.renderSidebar();
+      this.renderView();
     } catch (e) {
       console.warn('Cloud load failed, using local:', e);
       this.setSyncStatus(false);
-      this.config = this.loadConfig();
-      this.restoreGroups();
     }
   }
 
   async loadFromCloud() {
     // Load config
-    const { data: configData, error: configErr } = await supabase
-      .from('config')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle();
+    let configData;
+    try {
+      configData = await supabaseFetch('config', { params: '?id=eq.1' });
+    } catch { /* table may not exist yet */ }
     
-    if (configErr) throw configErr;
-    
-    if (configData) {
+    if (configData && configData[0]) {
+      const d = configData[0];
       this.config = {
-        operators: configData.operators || [],
-        categories: configData.categories || [],
-        partitions: configData.partitions || [],
-        naming: configData.naming || {},
-        selectedOperator: configData.selected_operator || '',
+        operators: d.operators || [],
+        categories: d.categories || [],
+        partitions: d.partitions || [],
+        naming: d.naming || {},
+        selectedOperator: d.selected_operator || '',
       };
     } else {
-      this.config = this.defaultConfig();
+      this.config = this.loadConfig();
     }
 
     // Load groups
-    const { data: groupsData, error: groupsErr } = await supabase
-      .from('groups')
-      .select('*');
+    let groupsData;
+    try {
+      groupsData = await supabaseFetch('groups');
+    } catch { /* table may not exist yet */ }
     
-    if (groupsErr) throw groupsErr;
-    
-    this.groups = new Map();
-    for (const g of (groupsData || [])) {
-      this.groups.set(g.skc, {
-        category: g.category || '',
-        productName: g.product_name || '',
-        skc: g.skc,
-        sku: g.sku || '',
-        partitions: { main: [], detail: [], sku: [], reserve: [] },
-        operatorCode: g.operator_code || '',
-      });
+    if (groupsData) {
+      this.groups = new Map();
+      for (const g of groupsData) {
+        this.groups.set(g.skc, {
+          category: g.category || '',
+          productName: g.product_name || '',
+          skc: g.skc,
+          sku: g.sku || '',
+          partitions: { main: [], detail: [], sku: [], reserve: [] },
+          operatorCode: g.operator_code || '',
+        });
+      }
     }
   }
 
   async saveToCloud() {
     if (!this.cloudConnected) return;
-    
-    // Save config
-    await supabase.from('config').upsert({
-      id: 1,
-      operators: this.config.operators,
-      categories: this.config.categories,
-      partitions: this.config.partitions,
-      naming: this.config.naming,
-      selected_operator: this.config.selectedOperator,
-      updated_at: new Date().toISOString(),
-    });
+    try {
+      await supabaseFetch('config', {
+        method: 'POST',
+        body: {
+          id: 1,
+          operators: this.config.operators,
+          categories: this.config.categories,
+          partitions: this.config.partitions,
+          naming: this.config.naming,
+          selected_operator: this.config.selectedOperator,
+          updated_at: new Date().toISOString(),
+        },
+        prefer: 'resolution=merge-duplicates',
+        params: '?on_conflict=id',
+      });
+    } catch (e) {
+      console.warn('Cloud save failed:', e);
+    }
   }
 
   /* ==============================
@@ -948,15 +962,20 @@ class ImageOrganizer {
   }
 
   async saveGroupToCloud(skc, group) {
-    if (!this.cloudConnected || !supabase) return;
+    if (!this.cloudConnected) return;
     try {
-      await supabase.from('groups').upsert({
-        skc,
-        category: group.category || '',
-        product_name: group.productName || '',
-        sku: group.sku || '',
-        operator_code: group.operatorCode || '',
-        updated_at: new Date().toISOString(),
+      await supabaseFetch('groups', {
+        method: 'POST',
+        body: {
+          skc,
+          category: group.category || '',
+          product_name: group.productName || '',
+          sku: group.sku || '',
+          operator_code: group.operatorCode || '',
+          updated_at: new Date().toISOString(),
+        },
+        prefer: 'resolution=merge-duplicates',
+        params: '?on_conflict=skc',
       });
     } catch (e) {
       console.warn('Failed to save group to cloud:', e);
@@ -964,9 +983,12 @@ class ImageOrganizer {
   }
 
   async deleteGroupFromCloud(skc) {
-    if (!this.cloudConnected || !supabase) return;
+    if (!this.cloudConnected) return;
     try {
-      await supabase.from('groups').delete().eq('skc', skc);
+      await supabaseFetch('groups', {
+        method: 'DELETE',
+        params: `?skc=eq.${encodeURIComponent(skc)}`,
+      });
     } catch (e) {
       console.warn('Failed to delete group from cloud:', e);
     }
