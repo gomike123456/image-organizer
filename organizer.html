@@ -111,7 +111,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 .group-item.ungrouped.active { background: #f0f2f5; color: var(--text); }
 
 .cat-section { margin-top: 6px; }
-.cat-header { padding: 5px 14px 5px 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); border-radius: 4px; margin: 0 6px; user-select: none; }
+.cat-header { padding: 5px 14px 5px 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--text); border-radius: 4px; margin: 0 6px; user-select: none; }
 .cat-header:hover { background: #f0f2f5; }
 .cat-arrow { font-size: 10px; transition: transform 0.15s; flex-shrink: 0; color: var(--text-secondary); }
 .cat-arrow.collapsed { transform: rotate(-90deg); }
@@ -119,7 +119,22 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 .cat-count { font-size: 11px; color: var(--text-secondary); background: #f0f0f0; padding: 1px 7px; border-radius: 10px; flex-shrink: 0; }
 .cat-body { overflow: hidden; }
 .cat-body.collapsed { display: none; }
-.group-item.cat-item { margin: 1px 10px 1px 26px; padding: 6px 10px; font-size: 13px; }
+.group-item.cat-item { margin: 1px 14px 1px 46px; padding: 5px 10px; font-size: 12px; border-radius: 4px; }
+.filter-row { padding: 6px 14px; display: flex; align-items: center; gap: 6px; font-size: 13px; border-bottom: 1px solid var(--border); margin-bottom: 4px; flex-wrap: wrap; }
+.filter-row .filter-group { display: flex; align-items: center; gap: 4px; }
+.filter-row .filter-sep { color: var(--text-light); font-size: 12px; margin: 0 2px; }
+.filter-row select { padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; outline: none; background: #fff; }
+.date-seg-divider { width: 100%; text-align: center; font-size: 10px; color: var(--text-light); padding: 3px 0 1px; margin: 2px 0; border-top: 1px dashed #e8e8e8; }
+.date-hint { padding: 8px 16px; font-size: 12px; line-height: 1.8; color: var(--text-secondary); border-top: 1px solid var(--border); margin-top: 4px; }
+.date-hint .hint-today { color: var(--primary); font-weight: 600; }
+.op-group { margin: 0 8px; }
+.op-header { padding: 3px 10px 3px 24px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-secondary); border-radius: 4px; user-select: none; }
+.op-header:hover { background: #f5f7fa; }
+.op-header .op-arrow { font-size: 8px; transition: transform 0.15s; flex-shrink: 0; }
+.op-header .op-arrow.collapsed { transform: rotate(-90deg); }
+.op-header .op-code { font-weight: 600; color: var(--text); font-size: 12px; }
+.op-body { overflow: hidden; }
+.op-body.collapsed { display: none; }
 
 /* ========== Content ========== */
 .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -270,6 +285,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
           <label style="width:auto;">SKU</label>
           <input type="text" id="createSKU" placeholder="选填: A001-Red-M" style="flex:0.8;">
         </div>
+        <div class="create-row" style="font-size:12px;color:var(--text-secondary);">
+          <span>分组将绑定运营：<strong id="createOperatorDisplay">未设置</strong></span>
+        </div>
       </div>
     </div>
     <div class="sidebar-scroll">
@@ -399,6 +417,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 const STORAGE_KEY = 'img_organizer_config_v2';
 const GROUPS_KEY = 'img_organizer_groups_v1';
 const COLLAPSED_KEY = 'organizer_collapsed_cats';
+const COLLAPSED_OPS_KEY = 'organizer_collapsed_ops';
 const PARTITION_KEYS = ['main', 'detail', 'sku', 'reserve'];
 
 class ImageOrganizer {
@@ -413,6 +432,8 @@ class ImageOrganizer {
     this.draggedFromPartition = null;
     this.nextTempId = 1;
     this.cloudConnected = false;
+    this.operatorFilter = '';
+    this.dateFilter = '';
     this.els = {};
     this.cacheDom();
     this.config = this.loadConfig();
@@ -482,6 +503,7 @@ class ImageOrganizer {
           sku: g.sku || '',
           partitions: { main: [], detail: [], sku: [], reserve: [] },
           operatorCode: g.operator_code || '',
+          createdAt: g.created_at ? new Date(g.created_at).getTime() : Date.now(),
         });
       }
     }
@@ -528,7 +550,7 @@ class ImageOrganizer {
         { key: 'reserve', label: '备用素材', fixed: false },
       ],
       naming: {
-        folderTemplate: '{品类}_{产品名}_{SKC}',
+        folderTemplate: '{品类}_{SKC}_{产品名}',
         fileTemplate: '{品类}_{产品名}_{SKC}_{类型}_{序号}',
       },
       selectedOperator: '',
@@ -562,6 +584,7 @@ class ImageOrganizer {
     if (this.config.operators.length === 0) {
       sel.innerHTML = '<option value="">未设置</option>';
     }
+    this.updateOperatorDisplay();
 
     const catSel = this.els.createCategory;
     catSel.innerHTML = this.config.categories.map(c =>
@@ -649,6 +672,7 @@ class ImageOrganizer {
     this.els.operatorSelect.addEventListener('change', () => {
       this.config.selectedOperator = this.els.operatorSelect.value;
       this.saveConfig();
+      this.updateOperatorDisplay();
     });
 
     this.els.createCategory.addEventListener('change', () => this.suggestSKC());
@@ -672,6 +696,15 @@ class ImageOrganizer {
 
     // Sidebar delegation
     this.els.groupList.addEventListener('click', (e) => {
+      const opHeader = e.target.closest('.op-header');
+      if (opHeader) {
+        const opKey = opHeader.dataset.opkey;
+         if (opKey) {
+           const [catName, ...opParts] = opKey.split(':');
+           this.toggleOperator(catName, opParts.join(':'));
+         }
+        return;
+      }
       const catHeader = e.target.closest('.cat-header');
       if (catHeader) {
         const catName = catHeader.dataset.category;
@@ -686,6 +719,17 @@ class ImageOrganizer {
         return;
       }
       this.selectView(item.dataset.group);
+    });
+
+    this.els.groupList.addEventListener('change', (e) => {
+      if (e.target.id === 'operatorFilterSelect') {
+        this.operatorFilter = e.target.value;
+        this.renderSidebar();
+      }
+      if (e.target.id === 'dateFilterSelect') {
+        this.dateFilter = e.target.value;
+        this.renderSidebar();
+      }
     });
 
     this.els.groupList.addEventListener('dragover', (e) => {
@@ -815,6 +859,7 @@ class ImageOrganizer {
             sku: item.sku || '',
             partitions: { main: [], detail: [], sku: [], reserve: [] },
             operatorCode: item.operatorCode || '',
+            createdAt: item.createdAt || Date.now(),
           });
         }
       }
@@ -950,6 +995,7 @@ class ImageOrganizer {
       sku,
       partitions: { main: [], detail: [], sku: [], reserve: [] },
       operatorCode: this.config.selectedOperator || '',
+      createdAt: Date.now(),
     };
 
     this.groups.set(skc, group);
@@ -972,6 +1018,7 @@ class ImageOrganizer {
           product_name: group.productName || '',
           sku: group.sku || '',
           operator_code: group.operatorCode || '',
+          created_at: new Date(group.createdAt || Date.now()).toISOString(),
           updated_at: new Date().toISOString(),
         },
         prefer: 'resolution=merge-duplicates',
@@ -1102,6 +1149,72 @@ class ImageOrganizer {
     this.renderSidebar();
   }
 
+  getCollapsedOps() {
+    try {
+      const raw = localStorage.getItem(COLLAPSED_OPS_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (e) { return new Set(); }
+  }
+
+  saveCollapsedOps(set) {
+    try { localStorage.setItem(COLLAPSED_OPS_KEY, JSON.stringify([...set])); }
+    catch (e) { /* ignore */ }
+  }
+
+  toggleOperator(catName, opCode) {
+    const collapsed = this.getCollapsedOps();
+    const key = `${catName}_${opCode}`;
+    if (collapsed.has(key)) {
+      collapsed.delete(key);
+    } else {
+      collapsed.add(key);
+    }
+    this.saveCollapsedOps(collapsed);
+    this.renderSidebar();
+  }
+
+  updateOperatorDisplay() {
+    const el = document.getElementById('createOperatorDisplay');
+    if (!el) return;
+    const code = this.config.selectedOperator;
+    if (!code) { el.textContent = '未设置'; return; }
+    const op = this.config.operators.find(o => o.code === code);
+    el.textContent = op ? `${op.code} (${op.name})` : code;
+  }
+
+  getDateSegment(ts) {
+    if (!ts) return 'earlier';
+    const d = new Date(ts);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (d >= today) return 'today';
+    if (d >= yesterday) return 'yesterday';
+    return 'earlier';
+  }
+
+  shouldShowGroup(g) {
+    if (!this.dateFilter) return true;
+    const seg = this.getDateSegment(g.createdAt);
+    if (this.dateFilter === 'today') return seg === 'today';
+    if (this.dateFilter === 'yesterday') return seg === 'yesterday';
+    if (this.dateFilter === 'week') {
+      const now = new Date();
+      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const created = g.createdAt ? new Date(g.createdAt) : null;
+      return created ? created >= weekStart : false;
+    }
+    if (this.dateFilter === 'month') {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const created = g.createdAt ? new Date(g.createdAt) : null;
+      return created ? created >= monthStart : false;
+    }
+    return true;
+  }
+
   /* ==============================
      Ungrouped Helpers
   ============================== */
@@ -1152,9 +1265,29 @@ class ImageOrganizer {
   renderSidebar() {
     const list = this.els.groupList;
     const collapsed = this.getCollapsedCats();
+    const collapsedOps = this.getCollapsedOps();
     const ungrouped = this.getUngroupedIndices().length;
     let html = `<div class="group-item ungrouped ${this.selectedView === '__ungrouped__' ? 'active' : ''}" data-group="__ungrouped__">
       <span class="g-icon">📋</span><span class="g-name">未分类</span><span class="g-count">${ungrouped}</span>
+    </div>`;
+
+    // Filter row
+    const filterOps = [{ code: '', name: '全部' }, ...this.config.operators.map(o => ({ code: o.code, name: `${o.code} (${o.name})` }))];
+    const dateFilterOps = [
+      { code: '', name: '全部日期' },
+      { code: 'today', name: '📅 今天' },
+      { code: 'yesterday', name: '📅 昨天' },
+      { code: 'week', name: '📅 本周' },
+      { code: 'month', name: '📅 本月' },
+    ];
+    html += `<div class="filter-row">
+      <span class="filter-group"><span>运营</span><select id="operatorFilterSelect">${filterOps.map(o =>
+        `<option value="${o.code}" ${o.code === this.operatorFilter ? 'selected' : ''}>${o.name}</option>`
+      ).join('')}</select></span>
+      <span class="filter-sep">|</span>
+      <span class="filter-group"><span>日期</span><select id="dateFilterSelect">${dateFilterOps.map(o =>
+        `<option value="${o.code}" ${o.code === this.dateFilter ? 'selected' : ''}>${o.name}</option>`
+      ).join('')}</select></span>
     </div>`;
 
     const cats = this.config.categories;
@@ -1162,6 +1295,8 @@ class ImageOrganizer {
     const orphanGroups = [];
 
     for (const [skc, g] of this.groups) {
+      if (this.operatorFilter && g.operatorCode !== this.operatorFilter) continue;
+      if (!this.shouldShowGroup(g)) continue;
       const catName = g.category;
       if (cats.some(c => c.name === catName)) {
         if (!groupsByCat.has(catName)) groupsByCat.set(catName, []);
@@ -1175,6 +1310,64 @@ class ImageOrganizer {
       arr.sort((a, b) => a.skc.localeCompare(b.skc));
     }
 
+    const renderGroupItemsPlain = (items) => {
+      return items.map(({ skc, g }) => {
+        const cnt = PARTITION_KEYS.reduce((t, k) => t + g.partitions[k].length, 0);
+        const name = this.shortGroupDisplayName(g);
+        const dateStr = g.createdAt ? new Date(g.createdAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+        return `<div class="group-item cat-item ${this.selectedView === skc ? 'active' : ''}" data-group="${skc}">
+          <span class="g-name" title="${this.groupDisplayName(g)} (创建于 ${dateStr})">${name}</span><span class="g-count">${cnt}</span>
+          <button class="g-del" title="删除分组">✕</button>
+        </div>`;
+      }).join('');
+    };
+
+    const renderGroupItemsWithDateSeg = (items) => {
+      const segments = { today: [], yesterday: [], earlier: [] };
+      for (const item of items) {
+        const seg = this.getDateSegment(item.g.createdAt);
+        segments[seg].push(item);
+      }
+      const segOrder = ['today', 'yesterday', 'earlier'];
+      const segLabels = { today: '今天', yesterday: '昨天', earlier: '更早' };
+      const parts = [];
+      for (const key of segOrder) {
+        const segItems = segments[key];
+        if (segItems.length === 0) continue;
+        if (parts.length > 0) {
+          parts.push(`<div class="date-seg-divider">${segLabels[key]}</div>`);
+        }
+        parts.push(renderGroupItemsPlain(segItems));
+      }
+      return parts.join('');
+    };
+
+    const renderOpGroups = (items, catName) => {
+      const ops = new Map();
+      for (const item of items) {
+        const op = item.g.operatorCode || '__未指定__';
+        if (!ops.has(op)) ops.set(op, []);
+        ops.get(op).push(item);
+      }
+      const opKeys = [...ops.keys()].sort((a, b) => a === '__未指定__' ? 1 : b === '__未指定__' ? -1 : a.localeCompare(b));
+      return opKeys.map(opKey => {
+        const opItems = ops.get(opKey);
+        const opTotal = opItems.reduce((s, { g }) => s + PARTITION_KEYS.reduce((t, k) => t + g.partitions[k].length, 0), 0);
+        const opLabel = opKey === '__未指定__' ? '未指定运营' : opKey;
+        const isCollapsed = collapsedOps.has(`${catName}_${opKey}`);
+        return `<div class="op-group">
+          <div class="op-header" data-opkey="${catName}:${opKey}">
+            <span class="op-arrow ${isCollapsed ? 'collapsed' : ''}">▶</span>
+            👤<span class="op-code">${opLabel}</span>
+            <span class="cat-count">${opTotal}</span>
+          </div>
+          <div class="op-body ${isCollapsed ? 'collapsed' : ''}">
+            ${renderGroupItemsWithDateSeg(opItems)}
+          </div>
+        </div>`;
+      }).join('');
+    };
+
     for (const cat of cats) {
       const items = groupsByCat.get(cat.name) || [];
       if (items.length === 0) continue;
@@ -1183,38 +1376,39 @@ class ImageOrganizer {
       html += `<div class="cat-section">
         <div class="cat-header" data-category="${cat.name}">
           <span class="cat-arrow ${isCollapsed ? 'collapsed' : ''}">▼</span>
-          <span class="cat-name">${cat.name}</span>
+          📁<span class="cat-name">${cat.name}</span>
           <span class="cat-count">${total}</span>
         </div>
-        <div class="cat-body ${isCollapsed ? 'collapsed' : ''}">`;
-
-      for (const { skc, g } of items) {
-        const cnt = PARTITION_KEYS.reduce((t, k) => t + g.partitions[k].length, 0);
-        const name = this.shortGroupDisplayName(g);
-        html += `<div class="group-item cat-item ${this.selectedView === skc ? 'active' : ''}" data-group="${skc}">
-          <span class="g-name" title="${this.groupDisplayName(g)}">${name}</span><span class="g-count">${cnt}</span>
-          <button class="g-del" title="删除分组">✕</button>
-        </div>`;
-      }
-
-      html += `</div></div>`;
+        <div class="cat-body ${isCollapsed ? 'collapsed' : ''}">
+           ${renderOpGroups(items, cat.name)}
+         </div>
+      </div>`;
     }
 
     if (orphanGroups.length > 0) {
       const total = orphanGroups.reduce((s, { g }) => s + PARTITION_KEYS.reduce((t, k) => t + g.partitions[k].length, 0), 0);
       html += `<div class="cat-section">
         <div class="cat-header" data-category="__other__">
-          <span class="cat-arrow">▼</span><span class="cat-name">其他</span><span class="cat-count">${total}</span>
+          <span class="cat-arrow">▼</span>📁<span class="cat-name">其他</span><span class="cat-count">${total}</span>
         </div>
-        <div class="cat-body">`;
-      for (const { skc, g } of orphanGroups) {
-        const cnt = PARTITION_KEYS.reduce((t, k) => t + g.partitions[k].length, 0);
-        html += `<div class="group-item cat-item ${this.selectedView === skc ? 'active' : ''}" data-group="${skc}">
-          <span class="g-name" title="${this.groupDisplayName(g)}">${this.shortGroupDisplayName(g)}</span><span class="g-count">${cnt}</span>
-          <button class="g-del" title="删除分组">✕</button>
-        </div>`;
-      }
-      html += `</div></div>`;
+        <div class="cat-body">
+           ${renderOpGroups(orphanGroups, '其他')}
+         </div>
+      </div>`;
+    }
+
+    // Date summary hint
+    let todayCount = 0, yesterdayCount = 0;
+    for (const [, g] of this.groups) {
+      const seg = this.getDateSegment(g.createdAt);
+      if (seg === 'today') todayCount++;
+      else if (seg === 'yesterday') yesterdayCount++;
+    }
+    if (todayCount > 0 || yesterdayCount > 0) {
+      const parts = [];
+      if (todayCount > 0) parts.push(`<span class="hint-today">📁 今日新增 ${todayCount} 个分组</span>`);
+      if (yesterdayCount > 0) parts.push(`<span>昨日新增 ${yesterdayCount} 个分组</span>`);
+      html += `<div class="date-hint">${parts.join('<br>')}</div>`;
     }
 
     list.innerHTML = html;
@@ -1230,6 +1424,13 @@ class ImageOrganizer {
     const empty = this.els.emptyState;
 
     if (this.files.length === 0) {
+      const group = this.groups.get(this.selectedView);
+      if (group) {
+        empty.style.display = 'none';
+        container.style.display = 'block';
+        this.renderGroupInfoCard(container, group);
+        return;
+      }
       empty.style.display = 'flex';
       container.style.display = 'none';
       return;
@@ -1268,8 +1469,9 @@ class ImageOrganizer {
 
   renderGroupView(container, g, preserveScroll) {
     const displayName = this.groupDisplayName(g);
+    const createdStr = g.createdAt ? new Date(g.createdAt).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
     this.els.contentTitle.textContent = `📁 ${displayName}`;
-    this.els.contentHint.textContent = '从待归类拖入分区，📋 复制，✕ 移除，拖拽调整顺序';
+    this.els.contentHint.textContent = `创建时间：${createdStr}  |  从待归类拖入分区，📋 复制，✕ 移除，拖拽调整顺序`;
 
     let html = '';
 
@@ -1339,6 +1541,21 @@ class ImageOrganizer {
           <button class="img-remove" data-action="remove" title="移出分组">✕</button>
         </div>
       </div>
+    </div>`;
+  }
+
+  renderGroupInfoCard(container, g) {
+    const displayName = this.groupDisplayName(g);
+    const createdStr = g.createdAt ? new Date(g.createdAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '未知';
+    const opLabel = g.operatorCode || '未设置';
+    this.els.contentTitle.textContent = `📁 ${displayName}`;
+    this.els.contentHint.textContent = '请先选择源文件夹开始整理图片';
+    container.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--text-secondary);gap:12px;font-size:14px;">
+      <div style="font-size:16px;font-weight:600;color:var(--text);">📁 ${displayName}</div>
+      <div>🕐 创建时间：${createdStr}</div>
+      <div>👤 运营：${opLabel}</div>
+      <div>📂 品类：${g.category}</div>
+      <div style="margin-top:8px;font-size:13px;color:var(--text-light);">📂 选择一个包含图片的文件夹开始整理</div>
     </div>`;
   }
 
